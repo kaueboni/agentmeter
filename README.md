@@ -34,7 +34,7 @@ Abra uma sessão nova e rode uma vez:
 
 O setup coloca a status line no seu `~/.claude/settings.json` (com backup antes). Se você já tiver outra status line, ele mostra qual é e pergunta antes de trocar. O painel de subagents já vem ativado pelo próprio plug-in.
 
-Requisitos: Claude Code 2.1.293 ou mais novo e `python3` no PATH. Não precisa instalar nenhum pacote.
+Requisitos: Claude Code 2.1.293 ou mais novo e `python3`, `python` ou `py` no PATH (o lançador `scripts/run.sh` escolhe o primeiro que funcionar; no Windows use o Git Bash que o Claude Code já exige). Não precisa instalar nenhum pacote.
 
 ## Relatório
 
@@ -49,7 +49,7 @@ Requisitos: Claude Code 2.1.293 ou mais novo e `python3` no PATH. Não precisa i
 Fora do Claude Code, o mesmo relatório sai com:
 
 ```
-python3 ~/.claude/agentmeter/agentmeter.py report
+sh ~/.claude/agentmeter/run.sh report
 ```
 
 ## Como funciona
@@ -70,9 +70,9 @@ Os valores são USD por milhão de tokens: input, cache write 5m, cache write 1h
 
 ## Opções
 
-- Sem os subagents na barra principal (só no painel): troque o comando da status line por `AGENTMETER_INLINE=0 python3 "$HOME/.claude/agentmeter/agentmeter.py" statusline`.
+- Sem os subagents na barra principal (só no painel): troque o comando da status line por `AGENTMETER_INLINE=0 sh "$HOME/.claude/agentmeter/run.sh" statusline`.
 - Atualização da barra: o setup usa `refreshInterval: 2`, para as barras andarem enquanto o principal espera os subagents. Mude com `/agentmeter:setup --refresh 5`.
-- Remover a status line: `python3 ~/.claude/agentmeter/agentmeter.py setup --remover`.
+- Remover a status line: `sh ~/.claude/agentmeter/run.sh setup --remover`.
 
 ## Desenvolvimento
 

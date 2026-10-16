@@ -22,7 +22,7 @@ import sqlite3
 import sys
 import time
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude")
@@ -71,7 +71,7 @@ HAIKU_55_LONG = (0.50, 0.625, 1, 0.05, 2.50)  # prompt > 100k
 def _load_prices():
     prices = list(PRICES)
     try:
-        with open(PRICING_OVERRIDE) as f:
+        with open(PRICING_OVERRIDE, encoding="utf-8") as f:
             extra = json.load(f)
         prices = [(k, tuple(v)) for k, v in extra.items()] + prices
     except Exception:
@@ -242,7 +242,7 @@ def ingest_file(con, path, session_id=None, agent_id=None, agent_type=None, proj
 def _agent_meta(path):
     meta = path[: -len(".jsonl")] + ".meta.json"
     try:
-        with open(meta) as f:
+        with open(meta, encoding="utf-8") as f:
             m = json.load(f)
         return m.get("agentType") or "subagent", m.get("description") or ""
     except Exception:
@@ -287,7 +287,7 @@ def _state_path(session_id, kind="hooks"):
 
 def _load_json(path, default):
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return default
@@ -296,7 +296,7 @@ def _load_json(path, default):
 def _save_json(path, obj):
     os.makedirs(STATE_DIR, exist_ok=True)
     tmp = "%s.%d.tmp" % (path, os.getpid())
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f)
     os.replace(tmp, path)
 
@@ -581,26 +581,30 @@ def cmd_subagent_line(data):
 # ---------------------------------------------------------------- hooks
 
 def install_copy():
-    """Copia este script para ~/.claude/agentmeter/, um caminho que não muda entre versões do plug-in."""
+    """Copia este script e o lançador para ~/.claude/agentmeter/, um caminho que não muda entre versões do plug-in."""
     src = os.path.abspath(__file__)
     if os.path.abspath(INSTALLED_SCRIPT) == src:
         return
     os.makedirs(APP_DIR, exist_ok=True)
-    try:
-        with open(src, "rb") as a:
-            new = a.read()
+    here = os.path.dirname(src)
+    for name in ("agentmeter.py", "run.sh"):
+        origem = os.path.join(here, name)
+        destino = os.path.join(APP_DIR, name)
         try:
-            with open(INSTALLED_SCRIPT, "rb") as b:
-                if b.read() == new:
-                    return
+            with open(origem, "rb") as a:
+                new = a.read()
+            try:
+                with open(destino, "rb") as b:
+                    if b.read() == new:
+                        continue
+            except OSError:
+                pass
+            tmp = destino + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(new)
+            os.replace(tmp, destino)
         except OSError:
             pass
-        tmp = INSTALLED_SCRIPT + ".tmp"
-        with open(tmp, "wb") as f:
-            f.write(new)
-        os.replace(tmp, INSTALLED_SCRIPT)
-    except OSError:
-        pass
 
 
 def cmd_hook(data):
@@ -792,7 +796,7 @@ def cmd_setup(args):
     install_copy()
     settings_path = os.path.join(CLAUDE_DIR, "settings.json")
     try:
-        with open(settings_path) as f:
+        with open(settings_path, encoding="utf-8") as f:
             settings = json.load(f)
     except FileNotFoundError:
         settings = {}
@@ -800,15 +804,15 @@ def cmd_setup(args):
         print("Não consegui ler %s: %s" % (settings_path, e))
         sys.exit(1)
     if os.environ.get("CLAUDE_CONFIG_DIR"):
-        command = 'python3 "%s" statusline' % INSTALLED_SCRIPT
+        command = 'sh "%s" statusline' % os.path.join(os.path.dirname(INSTALLED_SCRIPT), "run.sh").replace(os.sep, "/")
     else:
-        command = 'python3 "$HOME/.claude/agentmeter/agentmeter.py" statusline'
+        command = 'sh "$HOME/.claude/agentmeter/run.sh" statusline'
     current = settings.get("statusLine")
     if args.remover:
         if current and "agentmeter" in json.dumps(current):
             shutil.copy2(settings_path, settings_path + ".agentmeter-backup-%s" % time.strftime("%Y%m%d-%H%M%S"))
             del settings["statusLine"]
-            with open(settings_path, "w") as f:
+            with open(settings_path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=2, ensure_ascii=False)
                 f.write("\n")
             print("Status line do agentmeter removida de %s" % settings_path)
@@ -827,7 +831,7 @@ def cmd_setup(args):
     settings["statusLine"] = {"type": "command", "command": command, "refreshInterval": args.refresh}
     os.makedirs(CLAUDE_DIR, exist_ok=True)
     tmp = settings_path + ".tmp"
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2, ensure_ascii=False)
         f.write("\n")
     os.replace(tmp, settings_path)
@@ -846,6 +850,11 @@ def read_stdin_json():
 
 
 def main(argv=None):
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(prog="agentmeter", description=__doc__.split("\n")[0])
     ap.add_argument("--version", action="version", version=VERSION)
     sp = ap.add_subparsers(dest="cmd")

@@ -125,5 +125,45 @@ class AgentmeterTest(unittest.TestCase):
         self.assertIn("1 sessão", text)
 
 
+class TestPortabilidade(unittest.TestCase):
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def test_nada_chama_python3_direto(self):
+        for rel in ("hooks/hooks.json", "settings.json", "commands/setup.md", "commands/tokens.md"):
+            with open(os.path.join(self.ROOT, rel), encoding="utf-8") as f:
+                self.assertNotIn("python3", f.read(), rel)
+
+    def test_lancador_roda_o_script(self):
+        if not shutil.which("sh"):
+            self.skipTest("sh indisponível")
+        import subprocess
+        r = subprocess.run(["sh", os.path.join(self.ROOT, "scripts", "run.sh"), "--version"],
+                           capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("0.1", r.stdout)
+
+    def test_setup_preserva_utf8_e_usa_lancador(self):
+        import subprocess
+        tmp = tempfile.mkdtemp()
+        try:
+            cfg = os.path.join(tmp, "cfg")
+            os.makedirs(cfg)
+            path = os.path.join(cfg, "settings.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"nota": "ação é útil"}, f, ensure_ascii=False)
+            env = dict(os.environ, CLAUDE_CONFIG_DIR=cfg, PYTHONUTF8="0", PYTHONIOENCODING="ascii")
+            env.pop("AGENTMETER_HOME", None)
+            r = subprocess.run([sys.executable, os.path.join(self.ROOT, "scripts", "agentmeter.py"), "setup"],
+                               env=env, capture_output=True, check=False)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["nota"], "ação é útil")
+            self.assertIn("run.sh", data["statusLine"]["command"])
+            self.assertTrue(os.path.exists(os.path.join(cfg, "agentmeter", "run.sh")))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()
