@@ -1,6 +1,6 @@
 {
   "subagentStatusLine": {
     "type": "command",
-    "command": "python3 \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agentmeter/agentmeter.py\" subagent-line"
+    "command": "sh \"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agentmeter/run.sh\" subagent-line"
   }
 }
