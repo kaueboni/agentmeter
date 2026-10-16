@@ -1,0 +1,15 @@
+{
+  "name": "agentmeter",
+  "description": "Medidor de tokens e subagents para o Claude Code",
+  "owner": {
+    "name": "Kaue Bonilha",
+    "url": "https://github.com/kaueboni"
+  },
+  "plugins": [
+    {
+      "name": "agentmeter",
+      "source": "./",
+      "description": "Barra de contexto com os subagents ativos e tokens por sessão, projeto e subagent."
+    }
+  ]
+}

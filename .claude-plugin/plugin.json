@@ -1,0 +1,11 @@
+{
+  "name": "agentmeter",
+  "displayName": "agentmeter",
+  "version": "0.1.0",
+  "description": "Barra de contexto com os subagents ativos e contagem de tokens por sessão, projeto e subagent, do começo ao fim do projeto.",
+  "author": { "name": "Kaue Bonilha", "url": "https://github.com/kaueboni" },
+  "repository": "https://github.com/kaueboni/agentmeter",
+  "homepage": "https://github.com/kaueboni/agentmeter",
+  "license": "MIT",
+  "keywords": ["tokens", "statusline", "subagents", "cost", "usage"]
+}
