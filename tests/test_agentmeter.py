@@ -134,10 +134,13 @@ class TestPortabilidade(unittest.TestCase):
                 self.assertNotIn("python3", f.read(), rel)
 
     def test_lancador_roda_o_script(self):
-        if not shutil.which("sh"):
+        # No Windows o sh vem do Git Bash, que nem sempre está no PATH do PowerShell.
+        sh = shutil.which("sh") or next(
+            (c for c in (r"C:\Program Files\Git\usr\bin\sh.exe",) if os.path.isfile(c)), None)
+        if not sh:
             self.skipTest("sh indisponível")
         import subprocess
-        r = subprocess.run(["sh", os.path.join(self.ROOT, "scripts", "run.sh"), "--version"],
+        r = subprocess.run([sh, os.path.join(self.ROOT, "scripts", "run.sh"), "--version"],
                            capture_output=True, text=True, check=False)
         self.assertEqual(r.returncode, 0)
         self.assertIn("0.1", r.stdout)

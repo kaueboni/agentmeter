@@ -22,7 +22,7 @@ import sqlite3
 import sys
 import time
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 
 HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude")
@@ -693,6 +693,13 @@ def fmt_date(ts, with_time=False):
 
 def cmd_report(args):
     con = db_connect()
+    try:
+        _report(args, con)
+    finally:
+        con.close()
+
+
+def _report(args, con):
     cwd = args.cwd or os.getcwd()
     if args.todos:
         if os.path.isdir(PROJECTS_DIR):
@@ -796,7 +803,8 @@ def cmd_setup(args):
     install_copy()
     settings_path = os.path.join(CLAUDE_DIR, "settings.json")
     try:
-        with open(settings_path, encoding="utf-8") as f:
+        # utf-8-sig: editores do Windows (Bloco de Notas, PowerShell 5) gravam o BOM.
+        with open(settings_path, encoding="utf-8-sig") as f:
             settings = json.load(f)
     except FileNotFoundError:
         settings = {}
@@ -812,7 +820,7 @@ def cmd_setup(args):
         if current and "agentmeter" in json.dumps(current):
             shutil.copy2(settings_path, settings_path + ".agentmeter-backup-%s" % time.strftime("%Y%m%d-%H%M%S"))
             del settings["statusLine"]
-            with open(settings_path, "w", encoding="utf-8") as f:
+            with open(settings_path, "w", encoding="utf-8", newline="\n") as f:
                 json.dump(settings, f, indent=2, ensure_ascii=False)
                 f.write("\n")
             print("Status line do agentmeter removida de %s" % settings_path)
@@ -831,7 +839,7 @@ def cmd_setup(args):
     settings["statusLine"] = {"type": "command", "command": command, "refreshInterval": args.refresh}
     os.makedirs(CLAUDE_DIR, exist_ok=True)
     tmp = settings_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
         json.dump(settings, f, indent=2, ensure_ascii=False)
         f.write("\n")
     os.replace(tmp, settings_path)
@@ -900,8 +908,11 @@ def main(argv=None):
         cmd_setup(args)
     elif args.cmd == "ingest":
         con = db_connect()
-        p = find_project(args.cwd or os.getcwd())
-        ingest_project(con, p)
+        try:
+            p = find_project(args.cwd or os.getcwd())
+            ingest_project(con, p)
+        finally:
+            con.close()
         print("ok: %s" % p)
     else:
         ap.print_help()
