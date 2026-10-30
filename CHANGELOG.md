@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.3] - 2026-10-30
+
+### Added
+- `report --json` (e `--compacto`): relatório em JSON para outras ferramentas lerem, com totais da sessão e do projeto, uso por agente, uma linha por subagent executado (com a descrição, para cruzar com tarefas), contexto do principal e subagents ativos.
+
 ## [0.1.2] - 2026-10-16
 
 ### Fixed

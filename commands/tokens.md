@@ -1,6 +1,6 @@
 ---
 description: Relatório de tokens do projeto por agente, subagent, tipo e sessão
-argument-hint: "[--sessao] [--desde 7d] [--csv] [--todos]"
+argument-hint: "[--sessao] [--desde 7d] [--csv] [--json] [--todos]"
 allowed-tools: Bash(sh:*)
 ---
 
