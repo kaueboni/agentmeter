@@ -43,6 +43,7 @@ Requisitos: Claude Code 2.1.293 ou mais novo e `python3`, `python` ou `py` no PA
 /agentmeter:tokens --sessao        só a sessão atual
 /agentmeter:tokens --desde 7d      últimos 7 dias (também 24h, 2w ou 2026-10-01)
 /agentmeter:tokens --csv           uma linha por requisição, para planilha ou banco
+/agentmeter:tokens --json          relatório em JSON, para outras ferramentas
 /agentmeter:tokens --todos         todos os projetos
 ```
 
@@ -51,6 +52,29 @@ Fora do Claude Code, o mesmo relatório sai com:
 ```
 sh ~/.claude/agentmeter/run.sh report
 ```
+
+### Saída em JSON
+
+Para outras ferramentas (um mod, um painel, um script) lerem os números sem depender do texto:
+
+```
+sh ~/.claude/agentmeter/run.sh report --json              # indentado
+sh ~/.claude/agentmeter/run.sh report --json --compacto   # uma linha
+```
+
+Aceita os mesmos filtros (`--sessao`, `--desde`, `--todos`, `--projeto`). Chaves principais:
+
+| Chave | Conteúdo |
+|-------|----------|
+| `total` | tokens, `custo_usd`, `por_tipo` e período, com os filtros aplicados |
+| `projeto_total`, `sessao_atual_total` | os mesmos campos, sempre sem filtro de período |
+| `por_agente` | tokens, custo e número de execuções por tipo de agente |
+| `execucoes` | uma linha por subagent: `agent_id`, `agent_type`, `descricao`, modelo, tokens, custo, início e fim |
+| `contexto` | contexto do agente principal na sessão atual (tokens, janela, `pct`) |
+| `ativos` | subagents rodando agora, com contexto e tempo |
+
+`descricao` é a descrição que o Claude deu ao subagent. Se ela citar a tarefa (ex.: "Developer T16 front"),
+dá para somar custo por tarefa sem guardar nada à parte.
 
 ## Como funciona
 

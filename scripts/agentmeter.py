@@ -22,7 +22,7 @@ import sqlite3
 import sys
 import time
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 
 HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude")
@@ -725,6 +725,11 @@ def _report(args, con):
         params.append(since)
         scope += " · desde " + args.desde
 
+    if getattr(args, "json", False):
+        print(json.dumps(_report_json(con, where, params, project, current, scope),
+                         ensure_ascii=False, indent=None if getattr(args, "compacto", False) else 2))
+        return
+
     if args.csv:
         cur = con.execute(
             "SELECT ts, session_id, agent_id, agent_type, model, input, cw5, cw1, cr, output, ROUND(cost,6) "
@@ -793,8 +798,76 @@ def _report(args, con):
         title = title[:26] + ("…" if len(title) > 26 else "")
         out.append("%s  %-28s %7s" % (fmt_date(ts), title + mark, human(t)))
     out.append(line)
-    out.append("--sessao · --desde 7d · --csv · --todos")
+    out.append("--sessao · --desde 7d · --csv · --json · --todos")
     print("\n".join(out))
+
+
+def _sum_row(con, where, params):
+    r = con.execute(
+        "SELECT COALESCE(SUM(input+cw5+cw1+cr+output),0), COALESCE(SUM(cost),0), "
+        "COALESCE(SUM(input),0), COALESCE(SUM(cw5+cw1),0), COALESCE(SUM(cr),0), COALESCE(SUM(output),0), "
+        "COUNT(DISTINCT session_id), MIN(ts), MAX(ts) FROM usage WHERE " + where, params).fetchone()
+    return {
+        "tokens": r[0], "custo_usd": round(r[1], 6),
+        "por_tipo": {"input": r[2], "cache_write": r[3], "cache_read": r[4], "output": r[5]},
+        "sessoes": r[6], "primeiro": r[7], "ultimo": r[8],
+    }
+
+
+def _report_json(con, where, params, project, current, scope):
+    """Relatório em JSON para outras ferramentas (ex.: painel de um mod). Sem cores, sem formatação."""
+    out = {"versao": VERSION, "escopo": scope, "projeto": project, "sessao_atual": current}
+    out["total"] = _sum_row(con, where, params)
+
+    # totais fixos do projeto e da sessão atual, independentes dos filtros
+    if project:
+        out["projeto_total"] = _sum_row(con, "project=?", [project])
+        if current:
+            out["sessao_atual_total"] = _sum_row(con, "project=? AND session_id=?", [project, current])
+
+    out["por_agente"] = [
+        {"agent_type": a, "tokens": t, "custo_usd": round(c, 6), "execucoes": n}
+        for a, t, c, n in con.execute(
+            "SELECT agent_type, SUM(input+cw5+cw1+cr+output) t, SUM(cost), COUNT(DISTINCT NULLIF(agent_id,'')) "
+            "FROM usage WHERE " + where + " GROUP BY agent_type ORDER BY t DESC", params)
+    ]
+
+    # uma linha por subagent executado: é aqui que outra ferramenta cruza id/descrição com tarefas
+    w = where.replace("project", "u.project").replace("session_id", "u.session_id").replace(" ts", " u.ts")
+    out["execucoes"] = [
+        {"agent_id": aid, "agent_type": at, "descricao": desc or "", "session_id": sid,
+         "modelo": model, "tokens": t, "custo_usd": round(c, 6), "inicio": t0, "fim": t1}
+        for aid, at, desc, sid, model, t, c, t0, t1 in con.execute(
+            "SELECT u.agent_id, u.agent_type, a.description, u.session_id, MAX(u.model), "
+            "SUM(u.input+u.cw5+u.cw1+u.cr+u.output), SUM(u.cost), MIN(u.ts), MAX(u.ts) "
+            "FROM usage u LEFT JOIN agents a ON a.agent_id=u.agent_id "
+            "WHERE u.agent_id!='' AND " + w + " GROUP BY u.agent_id ORDER BY MIN(u.ts)", params)
+    ]
+
+    # contexto do principal e subagents ativos na sessão atual
+    out["contexto"] = None
+    out["ativos"] = []
+    if project and current:
+        transcript = os.path.join(PROJECTS_DIR, project, current + ".jsonl")
+        ctx, model = _last_context(transcript)
+        win = window_for(model)
+        if ctx is not None:
+            out["contexto"] = {"tokens": ctx, "janela": win, "pct": round(100.0 * ctx / win, 1) if win else None,
+                               "modelo": model}
+        try:
+            rows = number_instances(active_subagents(current, transcript, win))
+        except Exception:
+            rows = []
+        now = time.time()
+        descs = dict(con.execute("SELECT agent_id, description FROM agents WHERE session_id=?", (current,)).fetchall())
+        for r in rows:
+            out["ativos"].append({
+                "agent_id": r["id"], "agent_type": r["type"], "rotulo": r["label"],
+                "descricao": descs.get(r["id"]) or "", "tokens": r["tokens"], "janela": r["window"],
+                "pct": round(100.0 * r["tokens"] / r["window"], 1) if r["window"] else None,
+                "segundos": int(now - r["start"]),
+            })
+    return out
 
 
 # ---------------------------------------------------------------- setup
@@ -873,6 +946,8 @@ def main(argv=None):
     r.add_argument("--sessao", nargs="?", const="atual", help="só a sessão atual (ou um id)")
     r.add_argument("--desde", help="período: 7d, 24h, 2w ou data ISO")
     r.add_argument("--csv", action="store_true", help="exporta uma linha por requisição")
+    r.add_argument("--json", action="store_true", help="relatório em JSON, para outras ferramentas")
+    r.add_argument("--compacto", action="store_true", help="com --json: uma linha só")
     r.add_argument("--todos", action="store_true", help="todos os projetos")
     r.add_argument("--projeto", help="caminho de outro projeto")
     r.add_argument("--cwd", help=argparse.SUPPRESS)

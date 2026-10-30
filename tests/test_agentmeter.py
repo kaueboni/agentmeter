@@ -124,6 +124,50 @@ class AgentmeterTest(unittest.TestCase):
         self.assertIn("Explore", text)
         self.assertIn("1 sessão", text)
 
+    def _report_json(self, **extra):
+        class A:
+            cwd = "/work/demo"; todos = False; projeto = None; sessao = None
+            desde = None; csv = False; top = 3; json = True; compacto = True
+        for k, v in extra.items():
+            setattr(A, k, v)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.am.cmd_report(A())
+        return json.loads(buf.getvalue())
+
+    def test_report_json(self):
+        d = self._report_json()
+        self.assertEqual(d["versao"], self.am.VERSION)
+        self.assertEqual(d["sessao_atual"], "S1")
+        # r1 aparece 3 vezes no transcript, mas conta uma vez só
+        main_tokens = (10 + 1000 + 100) + (5 + 1000 + 50)
+        sub_tokens = 2 + 2000 + 20
+        self.assertEqual(d["total"]["tokens"], main_tokens + sub_tokens)
+        self.assertEqual(d["projeto_total"]["tokens"], d["total"]["tokens"])
+        self.assertEqual(d["sessao_atual_total"]["tokens"], d["total"]["tokens"])
+        self.assertGreater(d["total"]["custo_usd"], 0)
+        tipos = {a["agent_type"]: a for a in d["por_agente"]}
+        self.assertEqual(tipos["principal"]["tokens"], main_tokens)
+        self.assertEqual(tipos["Explore"]["execucoes"], 1)
+        self.assertEqual(len(d["execucoes"]), 1)
+        e = d["execucoes"][0]
+        self.assertEqual((e["agent_id"], e["agent_type"], e["descricao"]), ("a1", "Explore", "rotas"))
+        self.assertEqual(e["tokens"], sub_tokens)
+        self.assertEqual(d["contexto"]["tokens"], 5 + 0 + 1000)
+        self.assertEqual(d["ativos"], [])
+
+    def test_report_json_ativos_e_filtro(self):
+        self.am.cmd_hook({"hook_event_name": "SubagentStart", "session_id": "S1", "agent_id": "a1",
+                          "agent_type": "Explore", "transcript_path": self.main})
+        d = self._report_json(sessao="atual")
+        self.assertEqual(len(d["ativos"]), 1)
+        self.assertEqual(d["ativos"][0]["agent_id"], "a1")
+        self.assertEqual(d["ativos"][0]["descricao"], "rotas")
+        d = self._report_json(desde="2030-01-01")
+        self.assertEqual(d["total"]["tokens"], 0)
+        self.assertEqual(d["execucoes"], [])
+        self.assertGreater(d["projeto_total"]["tokens"], 0)  # projeto_total ignora o filtro
+
 
 class TestPortabilidade(unittest.TestCase):
     ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
